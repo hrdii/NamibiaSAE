@@ -9,12 +9,11 @@ rm(list = ls())
 
 ## Set Working Directory
 getwd()
-setwd("C:/Users/dayalani/Documents/02_Work/WB/Namibia")
+setwd("C:/Users/dayalani/Documents/02_Work/WB/Namibia/NamibiaSAE")
 
 ## Load Libraries 
 library(data.table)
 library(glmnet)
-library(corrplot)
 
 ## Fit LASSO Regression #####------#####------#####------
 
@@ -22,7 +21,7 @@ library(corrplot)
 df = fread("namibia_nhies_2015_hamonized_data.csv")
 
 ## Reposnse Variable 
-y = df$wel_abs
+y = log(df$wel_abs)
 
 ## Weights
 wt = df$wta_hh
@@ -33,12 +32,10 @@ temp = c(
   "region_name",
   
   ## Household Characteristics 
-  
   "hhsize", ## Household Size
   "rururb", ## Rural / Urban
   
   ## House Characteristics
-  
   "dweltyp", ## Type of Dwelling
   "rooms", ## Number of Habitable Rooms
   "roof", ## Roof Material
@@ -46,23 +43,19 @@ temp = c(
   "floor", ## Floor Material
   
   ## Sanitation
-  
   "water14", ## Main drinking water source
   "toilet14", ## Toilet Facility
   "toiletshared", ## Is the toilet shared
   
   ## Energy
-  
   "fuelcook", ## Cooking Fuel
   "fuelligh", ## Lighting Fuel
   "heatsource", ## Heat Source
   
   ## Access to Information
-  
   "radio", "television", "computer", "cellphone", "landphone", "internet",
   
   ## Head of Household Demographic Characteristics 
-  
   "agecat", ## Age group
   "sex", ## Sex
   "marital5", ## Marital Statue
@@ -75,23 +68,36 @@ temp = c(
   "industrycat10_year", ## Industry
   "occup_year" ## Occupation 
 )
+x = df[, .SD, .SDcols = temp]
 
-x = data.matrix(df[, .SD, .SDcols = temp])
+## Log transform continuous variables
+x$hhsize = log(x$hhsize)
+x$rooms = log(x$rooms)
 
-a = 1 ## Alpha parameter to pic between lasso, ridge and elastic net regularization path
+## Convert categorical variables to dummies
+options(na.action="na.pass")
+x = model.matrix(~., x)[, -1]
+
+## Convert to sparse matrix
+x = data.matrix(x)
+
+## Alpha parameter to pick between lasso, ridge, and elastic net 
+a = 1 
+
+## No penalty for variables relating to region
+var_penalty = as.numeric(!grepl("region", colnames(x)))
 
 ## K-fold cross validation for optimal lambda 
 cv_model = cv.glmnet(x, y, weights = wt, alpha = a, 
-                     family = "multinomial", 
-                     penalty.factor = c(0, rep(1, {length(temp) - 1})))
+                     penalty.factor = var_penalty)
 
 ## Optimal Lambda
 cv_model$lambda.min
 
 ## Best Fit Model #####------#####------#####------
-bf_model = glmnet(x, y, weights = wt, alpha = a, lambda = cv_model$lambda.min,
-                  family = "multinomial", 
-                  penalty.factor = c(0, rep(1, {length(temp) - 1})))
+bf_model = glmnet(x, y, weights = wt, alpha = a, 
+                  lambda = cv_model$lambda.min,
+                  penalty.factor = var_penalty)
 
 ## Examine Model Coefficients 
 vars = as.matrix(coef(bf_model))
@@ -99,7 +105,7 @@ vars = data.frame(var_names = rownames(vars), s0 = vars)
 vars = vars[vars$s0 != 0, "var_names"]
 
 ## Linear Model
-f = as.formula(paste("wel_abs ~", paste(vars[2:length(vars)], collapse = "+")))
+f = as.formula("wel_abs ~ region_name + hhsize + agecat + sex + marital5")
 lm_model = lm(formula = f, data = df, weights = df$wta_hh)
 summary(lm_model)
 

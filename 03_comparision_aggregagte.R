@@ -7,7 +7,7 @@
 rm(list = ls())
 ## Set Working Directory
 getwd()
-setwd("C:/Users/dayalani/Documents/02_Work/WB/Namibia")
+setwd("C:/Users/dayalani/Documents/02_Work/WB/Namibia/NamibiaSAE")
 
 ## Load Libraries 
 library(data.table)
